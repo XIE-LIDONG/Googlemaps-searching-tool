@@ -1,0 +1,202 @@
+# Google Maps Crawler - Phone Extraction by Numeric Length (≥6 digits)
+# Extract any numeric string ≥6 digits (ignore spaces/symbols), anti-blocking
+import sys
+import random
+import time
+import re
+
+# Install dependencies
+!apt-get remove chromium-browser chromium-chromedriver -y -qq > /dev/null 2>&1
+!pip uninstall selenium -y -qq > /dev/null 2>&1
+!apt-get update -qq > /dev/null 2>&1
+!apt-get install -y chromium-browser chromium-chromedriver libnss3 libgbm1 libasound2 libxss1 libgtk-3-0 -qq > /dev/null 2>&1
+!cp /usr/lib/chromium-browser/chromedriver /usr/bin/ 2>/dev/null
+!chmod +x /usr/bin/chromedriver
+!pip install selenium==4.11.2 -qq > /dev/null 2>&1
+sys.path.insert(0,'/usr/lib/chromium-browser/')
+
+# Import selenium modules
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
+
+# Chrome options (anti-blocking)
+options = Options()
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--disable-setuid-sandbox')
+options.add_argument('--single-process')
+options.add_argument('--disable-gpu')
+options.add_argument('--disable-images')
+options.add_argument('--window-size=1920,1080')
+options.add_argument('--headless=new')
+options.binary_location = "/usr/lib/chromium-browser/chromium-browser"
+
+# Anti-blocking settings
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--enable-javascript")
+options.add_argument("--user-data-dir=/tmp/temp_profile")
+options.add_argument("--lang=en-US")
+options.add_argument("--start-maximized")
+options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+
+# Hide automation
+options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+options.add_experimental_option('useAutomationExtension', False)
+
+# --------------------------
+# Core Function: Extract Phone by Numeric Length (≥6 digits)
+# --------------------------
+def extract_phone_by_digits(card):
+    """Extract phone by finding numeric strings ≥6 digits (ignore spaces/symbols)"""
+    phone = "No phone"
+    try:
+        # Get all text from the shop card
+        card_text = card.text
+
+        # Step 1: Find ALL potential phone-like strings (keep original format with spaces/symbols)
+        # Match: + (optional) + digits + spaces/-/(/) (optional) + digits (total digits ≥6)
+        # This regex preserves the original format (e.g., +966 50 123 4567)
+        raw_matches = re.findall(r'\+?\d[\d\s\-\(\)]{5,}', card_text)
+
+        if raw_matches:
+            # Step 2: For each match, calculate pure digit length (ignore spaces/symbols)
+            valid_candidates = []
+            for match in raw_matches:
+                # Remove all non-digit characters to count pure digits
+                pure_digits = re.sub(r'[^\d]', '', match)
+                # Only keep candidates with ≥6 pure digits
+                if len(pure_digits) >= 6:
+                    valid_candidates.append({
+                        'original': match.strip(),
+                        'digit_length': len(pure_digits)
+                    })
+
+            # Step 3: Choose the best candidate (longest digits, or first with +)
+            if valid_candidates:
+                # Sort by digit length (longest first)
+                valid_candidates.sort(key=lambda x: x['digit_length'], reverse=True)
+                # Prioritize candidates with + (international format)
+                for candidate in valid_candidates:
+                    if '+' in candidate['original']:
+                        phone = candidate['original']
+                        break
+                # If no +, take the longest digit string
+                if phone == "No phone":
+                    phone = valid_candidates[0]['original']
+
+                # Optional: Clean up extra spaces/symbols (make format neat)
+                phone = re.sub(r'\s+', ' ', phone)  # Replace multiple spaces with single
+                phone = re.sub(r'[()]+', '', phone)  # Remove parentheses
+
+    except Exception as e:
+        pass
+
+    return phone
+
+# Get user input
+print("=== Enter Search Criteria ===")
+country = input("Enter country: ").strip()
+city = input("Enter city (leave blank if not needed): ").strip()
+search_term = input("Enter search term (e.g., coffee, restaurant): ").strip()
+
+# Validate input
+if not country or not search_term:
+    print("✗ Error: Country and search term are required!")
+    sys.exit(1)
+
+# Build search query
+search_query = f"{search_term} in {city}, {country}" if city else f"{search_term} in {country}"
+print(f"\n✓ Search query: {search_query}")
+
+# Initialize browser
+print("\n=== Launch Google Maps ===")
+driver = webdriver.Chrome(options=options)
+print("✓ Browser started")
+
+driver.get("https://www.google.com/maps")
+time.sleep(5)
+
+# Verify page load
+if "maps" not in driver.page_source.lower():
+    print("⚠ Page load warning")
+else:
+    print("✓ Google Maps loaded")
+
+# Perform search
+try:
+    search_box = driver.find_element(By.CSS_SELECTOR, "input.fontBodyMedium")
+    search_box.click()
+    time.sleep(1)
+    search_box.clear()
+    search_box.send_keys(search_query)
+    search_box.send_keys(Keys.ENTER)
+    time.sleep(7)
+    print("✓ Search completed")
+except Exception as e:
+    print(f"✗ Search error: {e}")
+    driver.quit()
+    sys.exit(1)
+
+# Initialize deduplication
+extracted_shop_ids = set()
+serial_num = 1
+
+# Start crawling
+print(f"\n🔍 Crawling {search_term} (extract numbers ≥6 digits)...")
+print("="*85)
+print("No. | Shop Name               | Address                                 | Phone Number")
+print("="*85)
+
+# Core crawling loop
+last_count = 0
+same_count = 0
+max_same = 6
+
+while True:
+    # Scroll to load more
+    driver.execute_script("""
+        let feed = document.querySelector('div[role="feed"]');
+        if (feed) feed.scrollTop = feed.scrollHeight;
+    """)
+    time.sleep(random.uniform(2.5, 3.8))
+
+    # Get shop cards
+    shop_cards = driver.find_elements(By.CSS_SELECTOR, "div[class*='Nv2PK']")
+    current_count = len(shop_cards)
+
+    # Extract data
+    for card in shop_cards:
+        # Get basic info
+        shop_name = card.find_element(By.CSS_SELECTOR, "div.fontHeadlineSmall").text.strip() if card.find_elements(By.CSS_SELECTOR, "div.fontHeadlineSmall") else "No name"
+        shop_addr = card.find_element(By.CSS_SELECTOR, "div.W4Efsd > span:nth-child(2)").text.strip() if card.find_elements(By.CSS_SELECTOR, "div.W4Efsd > span:nth-child(2)") else "No address"
+        shop_id = f"{shop_name}_{shop_addr}"
+
+        # Deduplicate
+        if shop_id not in extracted_shop_ids:
+            extracted_shop_ids.add(shop_id)
+            # Extract phone by numeric length (core logic)
+            phone = extract_phone_by_digits(card)
+            # Print results
+            if shop_name != "No name":
+                print(f"{serial_num:>2}  | {shop_name:<23} | {shop_addr:<35} | {phone}")
+                serial_num += 1
+
+    # Check end of results
+    if current_count == last_count:
+        same_count += 1
+        if same_count >= max_same:
+            break
+    else:
+        same_count = 0
+    last_count = current_count
+
+# Final summary
+print("="*85)
+print(f"\n✅ Crawl done! Total unique locations: {len(extracted_shop_ids)}")
+print("✓ Phone extracted by numeric length (≥6 digits)")
+
+# Cleanup
+driver.quit()
+print("✓ Browser closed. Program finished.")
