@@ -1,0 +1,44 @@
+from pyngrok import ngrok, conf
+import subprocess
+import time
+import os
+
+# Configure ngrok auth token
+ngrok.set_auth_token("36YzJgb1iqDHqusMlxqwenxhVWO_55hzGkf1i3MAQ3Qs5EEXH")
+
+# Clean up existing ngrok tunnels (prevent 502 error)
+def clean_ngrok_tunnels():
+    tunnels = ngrok.get_tunnels()
+    if tunnels:
+        print(f"🔍 Found {len(tunnels)} active tunnels, cleaning up...")
+        for tunnel in tunnels:
+            ngrok.disconnect(tunnel.public_url)
+        ngrok.kill()
+        print("✅ All tunnels cleaned up")
+
+# Check app.py existence
+if not os.path.exists("app.py"):
+    print("❌ Error: app.py not found! Upload to Colab root directory first.")
+else:
+    # Clean old tunnels first
+    clean_ngrok_tunnels()
+    
+    print("✅ app.py found, starting Streamlit app...")
+
+    # Start Streamlit service on port 8501
+    streamlit_process = subprocess.Popen(
+        ["streamlit", "run", "app.py", "--server.port", "8501"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    # Wait for service initialization
+    time.sleep(8)
+
+    # Create ngrok tunnel
+    tunnel = ngrok.connect(8501, "http")
+
+    # Print access URL
+    print("="*60)
+    print(f"📌 Your Streamlit app access URL: {tunnel.public_url}")
+    print("="*60)
