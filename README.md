@@ -13,3 +13,7 @@ Key Features
 Anti-detection: Custom UA, hidden automation flags, random scroll delays
 Data extraction: Auto-scroll loading, phone filter (≥7 pure digits), international number priority
 Quality control: Deduplication (name+address), configurable stop conditions
+
+Versions
+Core Code Version: Directly runnable script with CLI interaction, lightweight and easy to use for quick data scraping.
+Streamlit Version: Web-based UI built with Streamlit, supports local deployment or remote access via ngrok tunnel for more user-friendly operation.
