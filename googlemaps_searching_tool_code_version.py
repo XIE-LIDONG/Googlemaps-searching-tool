@@ -1,5 +1,4 @@
-# Google Maps Crawler - Phone Extraction by Numeric Length (≥6 digits)
-# Extract any numeric string ≥6 digits (ignore spaces/symbols), anti-blocking
+
 import sys
 import random
 import time
@@ -45,9 +44,6 @@ options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) 
 options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
 options.add_experimental_option('useAutomationExtension', False)
 
-# --------------------------
-# Core Function: Extract Phone by Numeric Length (≥6 digits)
-# --------------------------
 def extract_phone_by_digits(card):
     """Extract phone by finding numeric strings ≥6 digits (ignore spaces/symbols)"""
     phone = "No phone"
@@ -56,7 +52,7 @@ def extract_phone_by_digits(card):
         card_text = card.text
 
         # Step 1: Find ALL potential phone-like strings (keep original format with spaces/symbols)
-        # Match: + (optional) + digits + spaces/-/(/) (optional) + digits (total digits ≥6)
+        # Match: + (optional) + digits + spaces/-/(/) (optional) + digits (total digits ≥7)
         # This regex preserves the original format (e.g., +966 50 123 4567)
         raw_matches = re.findall(r'\+?\d[\d\s\-\(\)]{5,}', card_text)
 
@@ -195,7 +191,7 @@ while True:
 # Final summary
 print("="*85)
 print(f"\n✅ Crawl done! Total unique locations: {len(extracted_shop_ids)}")
-print("✓ Phone extracted by numeric length (≥6 digits)")
+print("✓ Phone extracted by numeric length (≥7 digits)")
 
 # Cleanup
 driver.quit()
